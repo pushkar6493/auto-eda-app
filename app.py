@@ -1,49 +1,90 @@
 import streamlit as st
 import pandas as pd
-import seaborn as sns
+import numpy as np
 import matplotlib.pyplot as plt
+import seaborn as sns
 
 st.set_page_config(page_title="Auto EDA App", layout="wide")
-st.title("📊 Auto EDA App - Day 1 Project")
-st.write("Upload any CSV and get instant analysis")
+st.title("📊 Auto EDA App - Pro")
+st.markdown("Upload any CSV and get full EDA + Seaborn visuals + Report")
 
-uploaded_file = st.file_uploader("Choose a CSV file", type="csv")
+uploaded_file = st.file_uploader("Upload CSV", type=["csv"])
 
 if uploaded_file:
     df = pd.read_csv(uploaded_file)
+    
+    st.success(f"Loaded: {df.shape[0]} rows, {df.shape[1]} columns")
+    
+    tab1, tab2, tab3, tab4 = st.tabs(["📋 Overview", "📉 Missing & Stats", "📊 Seaborn Plots", "📥 Download Report"])
+    
+    with tab1:
+        st.subheader("Preview")
+        st.dataframe(df.head())
+        st.write("Columns:", list(df.columns))
+        st.write("Dtypes:")
+        st.write(df.dtypes)
 
-    st.subheader("1. Data Preview")
-    st.dataframe(df.head())
+    with tab2:
+        st.subheader("Missing Values")
+        missing = df.isnull().sum()
+        st.dataframe(missing[missing > 0])
+        if missing.sum() == 0:
+            st.info("No missing values! ✅")
+        
+        st.subheader("Summary Stats")
+        st.dataframe(df.describe())
 
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Rows", df.shape[0])
-    col2.metric("Columns", df.shape[1])
-    col3.metric("Missing Values", df.isnull().sum().sum())
+    with tab3:
+        st.subheader("Seaborn Visuals")
+        numeric_cols = df.select_dtypes(include=np.number).columns.tolist()
+        cat_cols = df.select_dtypes(include=['object']).columns.tolist()
+        
+        # 1. Correlation Heatmap
+        if len(numeric_cols) > 1:
+            st.write("**Correlation Heatmap**")
+            fig, ax = plt.subplots()
+            sns.heatmap(df[numeric_cols].corr(), annot=True, cmap="coolwarm", ax=ax)
+            st.pyplot(fig)
+        
+        # 2. Distribution Plot
+        if numeric_cols:
+            col = st.selectbox("Select numeric column for Distribution", numeric_cols)
+            fig, ax = plt.subplots()
+            sns.histplot(df[col], kde=True, ax=ax)
+            st.pyplot(fig)
+        
+        # 3. Count Plot
+        if cat_cols:
+            col2 = st.selectbox("Select categorical column for Countplot", cat_cols)
+            fig, ax = plt.subplots()
+            sns.countplot(y=df[col2], ax=ax, order=df[col2].value_counts().index[:10])
+            st.pyplot(fig)
+            
+        # 4. Scatter Plot
+        if len(numeric_cols) >= 2:
+            st.write("**Scatter Plot**")
+            x_col = st.selectbox("X-axis", numeric_cols, key="x")
+            y_col = st.selectbox("Y-axis", numeric_cols, key="y")
+            fig, ax = plt.subplots()
+            sns.scatterplot(data=df, x=x_col, y=y_col, ax=ax)
+            st.pyplot(fig)
 
-    st.subheader("2. Data Types & Missing Values")
-    st.write(pd.DataFrame({"dtype": df.dtypes, "missing": df.isnull().sum(), "missing_%": (df.isnull().sum()/len(df)*100).round(2)}))
-
-    st.subheader("3. Numerical Summary")
-    st.dataframe(df.describe())
-
-    st.subheader("4. Correlation Heatmap")
-    numeric_df = df.select_dtypes(include='number')
-    if not numeric_df.empty:
-        fig, ax = plt.subplots()
-        sns.heatmap(numeric_df.corr(), annot=True, cmap='coolwarm', ax=ax)
-        st.pyplot(fig)
-    else:
-        st.write("No numeric columns for correlation")
-
-    st.subheader("5. Distribution Plot")
-    col_to_plot = st.selectbox("Select column to plot", df.columns)
-    if col_to_plot:
-        fig2, ax2 = plt.subplots()
-        if pd.api.types.is_numeric_dtype(df[col_to_plot]):
-            df[col_to_plot].hist(ax=ax2, bins=30)
-        else:
-            df[col_to_plot].value_counts().head(10).plot(kind='bar', ax=ax2)
-        st.pyplot(fig2)
+    with tab4:
+        st.subheader("Download EDA Report")
+        report = f"""
+        Auto EDA Report
+        Rows: {df.shape[0]}
+        Columns: {df.shape[1]}
+        Columns List: {list(df.columns)}
+        
+        Missing Values:
+        {df.isnull().sum().to_string()}
+        
+        Summary:
+        {df.describe().to_string()}
+        """
+        st.download_button("Download Report as TXT", report, file_name="eda_report.txt")
+        st.download_button("Download Cleaned Data (Original)", df.to_csv(index=False), file_name="data.csv")
 
 else:
-    st.info("Try with sample: Bangalore House Prices dataset from Kaggle")
+    st.info("👆 Upload a CSV to start - Try Bangalore House Price CSV")
